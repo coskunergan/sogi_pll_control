@@ -55,13 +55,13 @@ const uint32_t EncoderB_Clk       = RCC_AHBPeriph_GPIOB;
 
 extern "C" void EXTI0_IRQHandler(void)
 {
-    butt.isr_handler(0);
+    butt.isr_handler(button_id);
     EXTI_ClearITPendingBit(EXTI_Line0);
 }
 
 extern "C" void EXTI2_IRQHandler(void)
 {
-    butt.isr_handler(1);
+    butt.isr_handler(encoder_button_id);
     EXTI_ClearITPendingBit(EXTI_Line2);
 }
 
