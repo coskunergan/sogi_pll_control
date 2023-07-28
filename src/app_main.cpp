@@ -18,7 +18,6 @@
 #include "button.h"
 #include "buzzer.h"
 #include "mc_spll.h"
-#include <atomic>
 
 using namespace cmsis;
 using namespace control;
@@ -27,7 +26,7 @@ SPLL  phase;
 button butt;
 buzzer buzz;
 printf_io my_printf;
-std::atomic_int enc_count{350};
+uint8_t enc_count{90};
 
 enum : size_t
 {
@@ -81,7 +80,6 @@ extern "C" void EXTI2_IRQHandler(void)
     EXTI_ClearITPendingBit(EXTI_Line2);
 }
 /****************************************************************************/
-const uint32_t SET_DEGREE = 150;
 const uint32_t DIFF_DEGREE = 10;
 const uint32_t OFFSET_PHASE = 90;
 extern "C" void ADC1_IRQHandler(void) // ~155 uSn (3.2KHz)
@@ -101,8 +99,8 @@ extern "C" void ADC1_IRQHandler(void) // ~155 uSn (3.2KHz)
         int degree = ((phase.phase() / 3.14159265358979323f) * 180.0f);
         degree += OFFSET_PHASE;
         degree %= 360;
-        if((degree > SET_DEGREE && degree < (DIFF_DEGREE + SET_DEGREE)) ||
-                (degree > (SET_DEGREE + 180) && degree < (DIFF_DEGREE + SET_DEGREE + 180)))
+        if((degree > enc_count && degree < (DIFF_DEGREE + enc_count)) ||
+                (degree > (enc_count + 180) && degree < (DIFF_DEGREE + enc_count + 180)))
         {
             GPIO_SetBits(GPIOC, GPIO_Pin_7);
         }
@@ -246,20 +244,20 @@ void app_main()
     {
         if(GPIO_ReadInputDataBit(EncoderB_Port, EncoderB_Pin))
         {
-            if(enc_count.load() > 180)
+            if(enc_count > 0)
             {
                 enc_count--;
             }
         }
         else
         {
-            if(enc_count.load() < 450)
+            if(enc_count < 170)
             {
                 enc_count++;
             }
         }
         my_printf.turn_off_bl_enable();
-        printf("\rEnc: %d    ", enc_count.load());
+        printf("\rEnc: %d    ", enc_count);
         buzz.beep(std::chrono::milliseconds(20));
         ignore = 10;
     });
