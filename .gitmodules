@@ -1,0 +1,3 @@
+[submodule "stm32_core"]
+	path = stm32_core
+	url = https://github.com/coskunergan/cmsis_v2_rtx_cpp.git
