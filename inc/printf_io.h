@@ -12,7 +12,10 @@
 
 #include "RTE_Components.h"
 #include CMSIS_device_header
+#include "timer.h"
 #include <cstdio>
+
+const std::chrono::milliseconds bl_msec = std::chrono::milliseconds(5000);
 
 const uint16_t LCD_RST_PIN       = GPIO_Pin_5;
 GPIO_TypeDef *const LCD_RST_PORT = GPIOC;
@@ -249,8 +252,33 @@ public:
         return ch;
     }
 
+    void turn_off_bl_enable()
+    {        
+        if(!m_tim_ptr)
+        {
+            sys::timer bl_timer(std::chrono::milliseconds(bl_msec), [&]
+            {
+                GPIO_SetBits(LCD_BL_PORT, LCD_BL_PIN); // BL OFF
+                return false;
+            });
+            m_tim_ptr = std::make_unique<sys::timer>(std::move(bl_timer));
+            m_tim_ptr->start();
+        }
+        else if(m_tim_ptr->running())
+        {
+            m_tim_ptr->stop();
+            m_tim_ptr->start();
+        }
+        else
+        {        
+            m_tim_ptr->start();
+        }
+        GPIO_ResetBits(LCD_BL_PORT, LCD_BL_PIN); // BL ON
+    }
+
 private:
     uint8_t ch_count;
+    std::unique_ptr<sys::timer> m_tim_ptr;
 
     void io_send(uint8_t byte)
     {

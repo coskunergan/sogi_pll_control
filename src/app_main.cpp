@@ -156,6 +156,7 @@ void app_main()
 
         butt.press(button_id, []
         {
+            my_printf.turn_off_bl_enable();
             printf("\rButton Pressed..");
             buzz.beep(std::chrono::milliseconds(50));
         });
