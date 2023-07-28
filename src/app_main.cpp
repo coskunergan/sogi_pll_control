@@ -23,6 +23,7 @@ using namespace cmsis;
 
 button butt;
 buzzer buzz;
+printf_io my_printf;
 std::atomic_int enc_count;
 
 enum : size_t
@@ -53,25 +54,34 @@ const uint16_t EncoderB_Pin       = GPIO_Pin_4;
 GPIO_TypeDef *const EncoderB_Port = GPIOB;
 const uint32_t EncoderB_Clk       = RCC_AHBPeriph_GPIOB;
 
+/****************************************************************************/
+/****************************************************************************/
+/****************************************************************************/
+extern "C" int _write(int fd, char *pbuffer, int size)
+{
+    for(int i = 0; i < size; i ++)
+    {
+        my_printf.io_putchar(*pbuffer++);
+    }
+    return size;
+}
+/****************************************************************************/
 extern "C" void EXTI0_IRQHandler(void)
 {
     butt.isr_handler(button_id);
     EXTI_ClearITPendingBit(EXTI_Line0);
 }
-
+/****************************************************************************/
 extern "C" void EXTI2_IRQHandler(void)
 {
     butt.isr_handler(encoder_button_id);
     EXTI_ClearITPendingBit(EXTI_Line2);
 }
-
-/****************************************************************************/
-/****************************************************************************/
 /****************************************************************************/
 void pre_init()
 {
     NVIC_PriorityGroupConfig(NVIC_PriorityGroup_4);
-    printf_init();
+    my_printf.init();
     //------------------------------
     GPIO_InitTypeDef GPIO_InitStructure;
     NVIC_InitTypeDef NVIC_InitStructure;

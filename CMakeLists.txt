@@ -6,7 +6,6 @@ project(Project)
 
 file(GLOB_RECURSE USER_SOURCES_EX  
         src/*.cpp
-		src/*.c
 )
 
 include_directories(
