@@ -17,14 +17,17 @@
 #include "osexception.h"
 #include "button.h"
 #include "buzzer.h"
+#include "mc_spll.h"
 #include <atomic>
 
 using namespace cmsis;
+using namespace control;
 
+SPLL  phase;
 button butt;
 buzzer buzz;
 printf_io my_printf;
-std::atomic_int enc_count;
+std::atomic_int enc_count{350};
 
 enum : size_t
 {
@@ -78,6 +81,70 @@ extern "C" void EXTI2_IRQHandler(void)
     EXTI_ClearITPendingBit(EXTI_Line2);
 }
 /****************************************************************************/
+const uint32_t SET_DEGREE = 150;
+const uint32_t DIFF_DEGREE = 10;
+const uint32_t OFFSET_PHASE = 90;
+extern "C" void ADC1_IRQHandler(void) // ~155 uSn (3.2KHz)
+{
+    static uint8_t count = 0;
+    static uint16_t adc_value = 0;
+
+    adc_value += ADC_GetConversionValue(ADC1);
+    ADC_ClearITPendingBit(ADC1, ADC_IT_EOC);
+
+    if(++count > 1)
+    {
+        count = 0;
+        adc_value = adc_value / 2;
+        phase.transfer_1phase(((float)adc_value)); // ~145 uSn
+        adc_value = 0;
+        int degree = ((phase.phase() / 3.14159265358979323f) * 180.0f);
+        degree += OFFSET_PHASE;
+        degree %= 360;
+        if((degree > SET_DEGREE && degree < (DIFF_DEGREE + SET_DEGREE)) ||
+                (degree > (SET_DEGREE + 180) && degree < (DIFF_DEGREE + SET_DEGREE + 180)))
+        {
+            GPIO_SetBits(GPIOC, GPIO_Pin_7);
+        }
+        else
+        {
+            GPIO_ResetBits(GPIOC, GPIO_Pin_7);
+        }
+    }
+}
+/****************************************************************************/
+void adc_init(void)
+{
+    ADC_InitTypeDef ADC_InitStructure;
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1, ENABLE);
+    ADC_DeInit(ADC1);
+    ADC_StructInit(&ADC_InitStructure);
+    ADC_InitStructure.ADC_Resolution = ADC_Resolution_12b;
+    ADC_InitStructure.ADC_ScanConvMode = ENABLE;
+    ADC_InitStructure.ADC_ContinuousConvMode = ENABLE;
+    ADC_InitStructure.ADC_ExternalTrigConvEdge = ADC_ExternalTrigConvEdge_None;
+    ADC_InitStructure.ADC_DataAlign = ADC_DataAlign_Right;
+    ADC_InitStructure.ADC_NbrOfConversion = 1;
+    ADC_Init(ADC1, &ADC_InitStructure);
+
+    ADC_RegularChannelConfig(ADC1, ADC_Channel_10, 1, ADC_SampleTime_384Cycles);
+    ADC_DelaySelectionConfig(ADC1, ADC_DelayLength_255Cycles);
+    ADC_PowerDownCmd(ADC1, ADC_PowerDown_Idle_Delay, ENABLE);
+    ADC_Cmd(ADC1, ENABLE);
+    while(ADC_GetFlagStatus(ADC1, ADC_FLAG_ADONS) == RESET);
+
+    NVIC_InitTypeDef NVIC_InitStructure;
+    NVIC_InitStructure.NVIC_IRQChannel = ADC1_IRQn;
+    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 15;
+    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
+    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+    NVIC_Init(&NVIC_InitStructure);
+
+    ADC_ITConfig(ADC1, ADC_IT_EOC, ENABLE);
+    ADC_ClearITPendingBit(ADC1, ADC_IT_EOC);
+    ADC_SoftwareStartConv(ADC1);
+}
+/****************************************************************************/
 void pre_init()
 {
     NVIC_PriorityGroupConfig(NVIC_PriorityGroup_4);
@@ -89,7 +156,6 @@ void pre_init()
 
     SYSCFG_EXTILineConfig(EncoderA_ExtiPort, EncoderA_ExtiPin);
     SYSCFG_EXTILineConfig(Button_ExtiPort, Button_ExtiPin);
-
     RCC_AHBPeriphClockCmd(EncoderA_Clk, ENABLE);
     RCC_AHBPeriphClockCmd(EncoderB_Clk, ENABLE);
     RCC_AHBPeriphClockCmd(Button_Clk, ENABLE);
@@ -142,69 +208,88 @@ void pre_init()
         return !GPIO_ReadInputDataBit(EncoderA_Port, EncoderA_Pin);
     });
     //------------------------------
+    adc_init();
+    //------------------------------
     buzz.init();
     //------------------------------
 }
 /****************************************************************************/
 void app_main()
 {
-    try
+    int ignore = 0;
+
+    phase.reset();
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+    printf("\rRestart..  ");
+
+    buzz.beep(std::chrono::milliseconds(50));
+
+    butt.press(button_id, [&]
     {
-        printf("\rRestart..  ");
-
+        my_printf.turn_off_bl_enable();
+        printf("\rButton Pressed..");
         buzz.beep(std::chrono::milliseconds(50));
+        ignore = 10;
+    });
 
-        butt.press(button_id, []
-        {
-            my_printf.turn_off_bl_enable();
-            printf("\rButton Pressed..");
-            buzz.beep(std::chrono::milliseconds(50));
-        });
+    butt.longpress(button_id, std::chrono::seconds(2), [&]
+    {
+        my_printf.turn_off_bl_enable();
+        printf("\rButton LongPressed..");
+        buzz.beep(std::chrono::milliseconds(200));
+        ignore = 10;
+    });
 
-        butt.longpress(button_id, std::chrono::seconds(2), []
+    butt.press(encoder_button_id, [&]
+    {
+        if(GPIO_ReadInputDataBit(EncoderB_Port, EncoderB_Pin))
         {
-            printf("\rButton LongPressed..");
-            buzz.beep(std::chrono::milliseconds(200));
-        });
-
-        butt.press(encoder_button_id, []
-        {
-            if(GPIO_ReadInputDataBit(EncoderB_Port, EncoderB_Pin))
+            if(enc_count.load() > 180)
             {
                 enc_count--;
             }
-            else
+        }
+        else
+        {
+            if(enc_count.load() < 450)
             {
                 enc_count++;
             }
-            printf("\rEnc: %d    ", enc_count.load());
-            buzz.beep(std::chrono::milliseconds(50));
-        });
+        }
+        my_printf.turn_off_bl_enable();
+        printf("\rEnc: %d    ", enc_count.load());
+        buzz.beep(std::chrono::milliseconds(20));
+        ignore = 10;
+    });
 
-        //throw std::system_error(0, os_category(), "TEST!!");
+    //throw std::system_error(0, os_category(), "TEST!!");
 
-        std::thread main_thread([]
-        {
-            sys::timer buzzerTimer(std::chrono::milliseconds(3000), []
-            {
-                buzz.beep(std::chrono::milliseconds(10));
-                return true;
-            });
-            buzzerTimer.start();
-            sys::chrono::high_resolution_clock::time_point tp1 = sys::chrono::high_resolution_clock::now();
-            std::mutex my_mutex;
-            for(;;)
-            {
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
-                my_mutex.lock();
-                printf("\r\nRun: %08X", (uint32_t)(sys::chrono::high_resolution_clock::now() - tp1).count());
-                my_mutex.unlock();
-            }
-        });
-    }
-    catch(std::exception &e)
+    sys::timer buzzerTimer(std::chrono::milliseconds(3000), []
     {
-        throw;
+        buzz.beep(std::chrono::milliseconds(10));
+        return true;
+    });
+    buzzerTimer.start();
+    int freq = 0;
+    float freq_sum = 0;
+    for(;;)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        if(!ignore)
+        {
+            freq_sum -= freq_sum / 10;
+            freq_sum += phase.freq() * phase.freq();
+            freq = (freq == 0) ? 1 : freq;
+            freq = (freq + ((freq_sum / 10) / freq)) / 2;
+            printf("\rF= %d Lock= %d       ", freq, (int)phase.is_lock());
+            printf("\r\nPhase = %d         ", (int)((phase.phase() / 3.14159265358979323f) * 180.0f));
+        }
+        else
+        {
+            ignore--;
+        }
     }
 }
 /****************************************************************************/

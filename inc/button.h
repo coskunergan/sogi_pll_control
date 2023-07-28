@@ -18,7 +18,7 @@
 #include <functional>
 
 const size_t max_button_num = 3; // max val => 31
-const std::chrono::milliseconds m_button_check_msec = std::chrono::milliseconds(100);
+const std::chrono::milliseconds m_button_check_msec = std::chrono::milliseconds(50);
 
 class button
 {
@@ -102,6 +102,7 @@ public:
                                     if(now > m_long_press_tp[id])
                                     {
                                         m_button_longpress_handler[id]();
+                                        m_mask &= ~(1UL << id);
                                     }
                                 }
                             }

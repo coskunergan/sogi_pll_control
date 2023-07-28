@@ -253,7 +253,7 @@ public:
     }
 
     void turn_off_bl_enable()
-    {        
+    {
         if(!m_tim_ptr)
         {
             sys::timer bl_timer(std::chrono::milliseconds(bl_msec), [&]
@@ -270,7 +270,7 @@ public:
             m_tim_ptr->start();
         }
         else
-        {        
+        {
             m_tim_ptr->start();
         }
         GPIO_ResetBits(LCD_BL_PORT, LCD_BL_PIN); // BL ON
