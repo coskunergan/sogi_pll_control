@@ -12,34 +12,20 @@
 
 #include "RTE_Components.h"
 #include CMSIS_device_header
-#include "timer.h"
 #include <cstdio>
+#include "timer.h"
+#include "gpio_hal.h"
+
+using namespace gpio_hal;
 
 const std::chrono::milliseconds bl_msec = std::chrono::milliseconds(5000);
 
-const uint16_t LCD_RST_PIN       = GPIO_Pin_5;
-GPIO_TypeDef *const LCD_RST_PORT = GPIOC;
-const uint32_t LCD_RST_AHB       = RCC_AHBPeriph_GPIOC;
-
-const uint16_t LCD_ENB_PIN       = GPIO_Pin_13;
-GPIO_TypeDef *const LCD_ENB_PORT = GPIOB;
-const uint32_t LCD_ENB_AHB       = RCC_AHBPeriph_GPIOB;
-
-const uint16_t LCD_CMD_PIN       = GPIO_Pin_1;
-GPIO_TypeDef *const LCD_CMD_PORT = GPIOB;
-const uint32_t LCD_CMD_AHB       = RCC_AHBPeriph_GPIOB;
-
-const uint16_t LCD_CLK_PIN       = GPIO_Pin_2;
-GPIO_TypeDef *const LCD_CLK_PORT = GPIOB;
-const uint32_t LCD_CLK_AHB       = RCC_AHBPeriph_GPIOB;
-
-const uint16_t LCD_DTA_PIN       = GPIO_Pin_14;
-GPIO_TypeDef *const LCD_DTA_PORT = GPIOB;
-const uint32_t LCD_DTA_AHB       = RCC_AHBPeriph_GPIOB;
-
-const uint16_t LCD_BL_PIN       = GPIO_Pin_0;
-GPIO_TypeDef *const LCD_BL_PORT = GPIOB;
-const uint32_t LCD_BL_AHB       = RCC_AHBPeriph_GPIOB;
+GpioOutput lcd_rst_pin;
+GpioOutput lcd_enb_pin;
+GpioOutput lcd_cmd_pin;
+GpioOutput lcd_clk_pin;
+GpioOutput lcd_dta_pin;
+GpioOutput lcd_bl_pin;
 
 const uint8_t init_params[] =
 {
@@ -166,10 +152,18 @@ public:
     void init()
     {
         setvbuf(stdout, NULL, _IONBF, 0);
-        io_pins_init();
+        lcd_rst_pin.init(lcd_rst_pin.make_pin(GPIOC, GPIO_Pin_5), true);
+        lcd_rst_pin.on();
+        lcd_clk_pin.init(lcd_clk_pin.make_pin(GPIOB, GPIO_Pin_2));
+        lcd_dta_pin.init(lcd_dta_pin.make_pin(GPIOB, GPIO_Pin_14));
+        lcd_cmd_pin.init(lcd_cmd_pin.make_pin(GPIOB, GPIO_Pin_1));
+        lcd_enb_pin.init(lcd_enb_pin.make_pin(GPIOB, GPIO_Pin_13), true);
+        lcd_enb_pin.on();
+        lcd_bl_pin.init(lcd_bl_pin.make_pin(GPIOB, GPIO_Pin_0), true);        
+        lcd_rst_pin.off();
         volatile uint8_t i = 0;
         while(--i);
-        GPIO_ResetBits(LCD_CMD_PORT, LCD_CMD_PIN);;
+        lcd_cmd_pin.off();
         i = 0;
         do
         {
@@ -180,27 +174,27 @@ public:
         io_send(0xB0);
         for(uint8_t i = 0; i < 16; i++)
         {
-            GPIO_ResetBits(LCD_CMD_PORT, LCD_CMD_PIN);
+            lcd_cmd_pin.off();
             io_send(i);
             io_send(0x10);
-            GPIO_SetBits(LCD_CMD_PORT, LCD_CMD_PIN);
+            lcd_cmd_pin.on();
             io_send(0x00);
         }
-        GPIO_ResetBits(LCD_CMD_PORT, LCD_CMD_PIN);
+        lcd_cmd_pin.off();
         io_send(0xB8);
         for(i = 0; i < 96; i++)
         {
-            GPIO_ResetBits(LCD_CMD_PORT, LCD_CMD_PIN);
+            lcd_cmd_pin.off();
             io_send(i & 0xF);
             io_send((i >> 4) | 0x10);
-            GPIO_SetBits(LCD_CMD_PORT, LCD_CMD_PIN);
+            lcd_cmd_pin.on();
             io_send(0x00);
         }
-        GPIO_ResetBits(LCD_CMD_PORT, LCD_CMD_PIN);
+        lcd_cmd_pin.off();
         io_send(0xB0);
         io_send(0x00);
         io_send(0x11);
-        GPIO_SetBits(LCD_CMD_PORT, LCD_CMD_PIN);
+        lcd_cmd_pin.on();
         ch_count = 0;
     }
 
@@ -212,11 +206,11 @@ public:
             {
                 ch_count = 0;
             }
-            GPIO_ResetBits(LCD_CMD_PORT, LCD_CMD_PIN);
+            lcd_cmd_pin.off();
             io_send(0xB0);
             io_send(0x00);
             io_send(0x11);
-            GPIO_SetBits(LCD_CMD_PORT, LCD_CMD_PIN);
+            lcd_cmd_pin.on();
 
         }
         else if(ch == '\n')
@@ -224,11 +218,11 @@ public:
             if(ch_count < 14)
             {
                 ch_count = 14;
-                GPIO_ResetBits(LCD_CMD_PORT, LCD_CMD_PIN);
+                lcd_cmd_pin.off();
                 io_send(0xB1);
                 io_send(0x00);
                 io_send(0x11);
-                GPIO_SetBits(LCD_CMD_PORT, LCD_CMD_PIN);
+                lcd_cmd_pin.on();
             }
         }
         else
@@ -237,11 +231,11 @@ public:
             {
                 io_send(0);
                 io_send(0);
-                GPIO_ResetBits(LCD_CMD_PORT, LCD_CMD_PIN);
+                lcd_cmd_pin.off();
                 io_send(0xB1);
                 io_send(0x00);
                 io_send(0x11);
-                GPIO_SetBits(LCD_CMD_PORT, LCD_CMD_PIN);
+                lcd_cmd_pin.on();
             }
             uint8_t temp = ch - 0x20;
             for(uint8_t i = 0; i < 6; i++)
@@ -258,7 +252,7 @@ public:
         {
             sys::timer bl_timer(std::chrono::milliseconds(bl_msec), [&]
             {
-                GPIO_SetBits(LCD_BL_PORT, LCD_BL_PIN); // BL OFF
+                lcd_bl_pin.off();
                 return false;
             });
             m_tim_ptr = std::make_unique<sys::timer>(std::move(bl_timer));
@@ -273,7 +267,7 @@ public:
         {
             m_tim_ptr->start();
         }
-        GPIO_ResetBits(LCD_BL_PORT, LCD_BL_PIN); // BL ON
+        lcd_bl_pin.on();
     }
 
 private:
@@ -284,44 +278,18 @@ private:
     {
         for(uint8_t i = 0; i < 8; i++)
         {
-            GPIO_ResetBits(LCD_CLK_PORT, LCD_CLK_PIN);
+            lcd_clk_pin.off();
             if((byte & 0x80) == 0x80)
             {
-                GPIO_SetBits(LCD_DTA_PORT, LCD_DTA_PIN);
+                lcd_dta_pin.on();
             }
             else
             {
-                GPIO_ResetBits(LCD_DTA_PORT, LCD_DTA_PIN);
+                lcd_dta_pin.off();
             }
             byte <<= 1;
-            GPIO_SetBits(LCD_CLK_PORT, LCD_CLK_PIN);
+            lcd_clk_pin.on();
         }
-    }
-
-    void io_pin_init(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin, uint16_t GPIO_clk)
-    {
-        GPIO_InitTypeDef GPIO_InitStructure = {0};
-        RCC_AHBPeriphClockCmd(GPIO_clk, ENABLE);
-        GPIO_InitStructure.GPIO_Pin = GPIO_Pin;
-        GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
-        GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-        GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
-        GPIO_InitStructure.GPIO_Speed = GPIO_Speed_40MHz;
-        GPIO_Init(GPIOx, &GPIO_InitStructure);
-    }
-
-    void io_pins_init(void)
-    {
-        io_pin_init(LCD_RST_PORT, LCD_RST_PIN, LCD_RST_AHB);
-        GPIO_ResetBits(LCD_RST_PORT, LCD_RST_PIN);
-        io_pin_init(LCD_CLK_PORT, LCD_CLK_PIN, LCD_CLK_AHB);
-        io_pin_init(LCD_DTA_PORT, LCD_DTA_PIN, LCD_DTA_AHB);
-        io_pin_init(LCD_CMD_PORT, LCD_CMD_PIN, LCD_CMD_AHB);
-        io_pin_init(LCD_ENB_PORT, LCD_ENB_PIN, LCD_ENB_AHB);
-        io_pin_init(LCD_BL_PORT, LCD_BL_PIN, LCD_BL_AHB);
-        GPIO_ResetBits(LCD_ENB_PORT, LCD_ENB_PIN);
-        GPIO_ResetBits(LCD_BL_PORT, LCD_BL_PIN);
-        GPIO_SetBits(LCD_RST_PORT, LCD_RST_PIN);
     }
 };
 

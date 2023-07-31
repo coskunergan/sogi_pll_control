@@ -1,0 +1,31 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "cortex-debug",
+      "request": "launch",
+      "name": "Debug J-Link",
+      "cwd": "${workspaceRoot}",
+      "executable": "${workspaceRoot}/build/stm32_core/Project.elf",
+      "serverpath": "C:/Program Files (x86)/SEGGER/JLink_V620c/JLinkGDBServerCL.exe",
+      "servertype": "jlink",
+      "device": "STM32L151RD",
+      "interface": "swd",
+      "serialNumber": "",
+      "runToMain": true,
+      "svdFile": "${workspaceRoot}/.vscode/ARMCM3.svd"
+    },
+    {
+      "name": "J-Link attach",
+      "cwd": "${workspaceRoot}",
+      "executable": "${workspaceRoot}/build/stm32_core/Project.elf",
+      "request": "attach",
+      "type": "cortex-debug",
+      "serverpath": "C:/Program Files (x86)/SEGGER/JLink_V620c/JLinkGDBServerCL.exe",
+      "servertype": "jlink",
+      "device": "STM32L151RD",
+      "interface": "swd",
+      "svdFile": "${workspaceRoot}/.vscode/ARMCM3.svd"
+    }
+  ]
+}

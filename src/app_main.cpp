@@ -18,15 +18,17 @@
 #include "button.h"
 #include "buzzer.h"
 #include "mc_spll.h"
+#include "gpio_hal.h"
 
 using namespace cmsis;
 using namespace control;
+using namespace gpio_hal;
 
 SPLL  phase;
 button butt;
 buzzer buzz;
 printf_io my_printf;
-uint8_t enc_count{90};
+uint8_t enc_count{175};
 
 enum : size_t
 {
@@ -157,12 +159,18 @@ void pre_init()
     RCC_AHBPeriphClockCmd(EncoderA_Clk, ENABLE);
     RCC_AHBPeriphClockCmd(EncoderB_Clk, ENABLE);
     RCC_AHBPeriphClockCmd(Button_Clk, ENABLE);
+    RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOC, ENABLE);
 
     GPIO_InitStructure.GPIO_Pin = Button_Pin;
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN;
     GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP;
     GPIO_InitStructure.GPIO_Speed = GPIO_Speed_40MHz;
     GPIO_Init(Button_Port, &GPIO_InitStructure);
+
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_7;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;    
+    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_40MHz;
+    GPIO_Init(GPIOC, &GPIO_InitStructure);    
 
     GPIO_InitStructure.GPIO_Pin = EncoderA_Pin;
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN;
@@ -244,14 +252,14 @@ void app_main()
     {
         if(GPIO_ReadInputDataBit(EncoderB_Port, EncoderB_Pin))
         {
-            if(enc_count > 0)
+            if(enc_count > 100)
             {
                 enc_count--;
             }
         }
         else
         {
-            if(enc_count < 170)
+            if(enc_count < 180)
             {
                 enc_count++;
             }
