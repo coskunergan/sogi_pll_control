@@ -21,12 +21,16 @@
 #include "gpio_hal.h"
 
 using namespace cmsis;
-using namespace control;
+using namespace device_pll_control;
+using namespace device_buzzer;
+using namespace device_button;
 using namespace gpio_hal;
 
+GpioInput test_button_pin;
 SPLL  phase;
 button butt;
 buzzer buzz;
+
 printf_io my_printf;
 uint8_t enc_count{175};
 
@@ -35,15 +39,6 @@ enum : size_t
     button_id = 0,
     encoder_button_id = 1
 };
-
-const uint16_t Button_Pin         = GPIO_Pin_0;
-GPIO_TypeDef *const Button_Port   = GPIOA;
-const uint32_t Button_Clk         = RCC_AHBPeriph_GPIOA;
-const uint8_t Button_Source       = GPIO_PinSource0;
-const uint8_t Button_ExtiPin      = EXTI_PinSource0;
-const uint8_t Button_ExtiPort     = EXTI_PortSourceGPIOA;
-const uint32_t Button_ExtiLine    = EXTI_Line0;
-const IRQn_Type Button_IRQn       = EXTI0_IRQn;
 
 const uint16_t EncoderA_Pin       = GPIO_Pin_2;
 GPIO_TypeDef *const EncoderA_Port = GPIOA;
@@ -70,9 +65,16 @@ extern "C" int _write(int fd, char *pbuffer, int size)
     return size;
 }
 /****************************************************************************/
+// extern "C" void EXTI0_IRQHandler(void)
+// {
+//     butt.isr_handler(button_id);
+//     EXTI_ClearITPendingBit(EXTI_Line0);
+// }
+
 extern "C" void EXTI0_IRQHandler(void)
 {
-    butt.isr_handler(button_id);
+    test_button_pin.gpio_isr_callback(GPIO_Pin_0);
+    //butt.isr_handler(button_id);
     EXTI_ClearITPendingBit(EXTI_Line0);
 }
 /****************************************************************************/
@@ -155,22 +157,15 @@ void pre_init()
     EXTI_InitTypeDef EXTI_InitStructure;
 
     SYSCFG_EXTILineConfig(EncoderA_ExtiPort, EncoderA_ExtiPin);
-    SYSCFG_EXTILineConfig(Button_ExtiPort, Button_ExtiPin);
+
     RCC_AHBPeriphClockCmd(EncoderA_Clk, ENABLE);
     RCC_AHBPeriphClockCmd(EncoderB_Clk, ENABLE);
-    RCC_AHBPeriphClockCmd(Button_Clk, ENABLE);
     RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOC, ENABLE);
 
-    GPIO_InitStructure.GPIO_Pin = Button_Pin;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN;
-    GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP;
-    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_40MHz;
-    GPIO_Init(Button_Port, &GPIO_InitStructure);
-
     GPIO_InitStructure.GPIO_Pin = GPIO_Pin_7;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;    
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
     GPIO_InitStructure.GPIO_Speed = GPIO_Speed_40MHz;
-    GPIO_Init(GPIOC, &GPIO_InitStructure);    
+    GPIO_Init(GPIOC, &GPIO_InitStructure);
 
     GPIO_InitStructure.GPIO_Pin = EncoderA_Pin;
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN;
@@ -179,12 +174,6 @@ void pre_init()
     GPIO_Init(EncoderA_Port, &GPIO_InitStructure);
     GPIO_InitStructure.GPIO_Pin = EncoderB_Pin;
     GPIO_Init(EncoderB_Port, &GPIO_InitStructure);
-
-    EXTI_InitStructure.EXTI_Line = Button_ExtiLine;
-    EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Interrupt;
-    EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Falling;
-    EXTI_InitStructure.EXTI_LineCmd = ENABLE;
-    EXTI_Init(&EXTI_InitStructure);
 
     EXTI_InitStructure.EXTI_Line = EncoderA_ExtiLine;
     EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Interrupt;
@@ -198,15 +187,15 @@ void pre_init()
     NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
     NVIC_Init(&NVIC_InitStructure);
 
-    NVIC_InitStructure.NVIC_IRQChannel = Button_IRQn;
-    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 15;
-    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
-    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
-    NVIC_Init(&NVIC_InitStructure);
+    test_button_pin.init(GPIOA, GPIO_Pin_0, true);
+
+    test_button_pin.enablePullup();
+
+    test_button_pin.enableInterrupt(GpioInput::gpio_int_type_t::fall);
 
     butt.check(button_id, []
     {
-        return !GPIO_ReadInputDataBit(Button_Port, Button_Pin);
+        return !GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_0);
     });
 
     butt.check(encoder_button_id, []
@@ -226,9 +215,17 @@ void app_main()
 
     phase.reset();
 
+    test_button_pin.setEventHandler([]
+    {
+        butt.isr_handler(button_id);
+    });
+
+    //test_button_pin.clearEventHandlers();
+
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
     printf("\rRestart..  ");
+    my_printf.turn_off_bl_enable();
 
     buzz.beep(std::chrono::milliseconds(50));
 
@@ -272,9 +269,9 @@ void app_main()
 
     //throw std::system_error(0, os_category(), "TEST!!");
 
-    sys::timer buzzerTimer(std::chrono::milliseconds(3000), []
+    sys::timer buzzerTimer(std::chrono::milliseconds(3000), [&]
     {
-        buzz.beep(std::chrono::milliseconds(10));
+        buzz.beep(std::chrono::milliseconds(3));
         return true;
     });
     buzzerTimer.start();

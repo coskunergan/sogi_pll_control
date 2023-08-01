@@ -152,14 +152,14 @@ public:
     void init()
     {
         setvbuf(stdout, NULL, _IONBF, 0);
-        lcd_rst_pin.init(lcd_rst_pin.make_pin(GPIOC, GPIO_Pin_5), true);
+        lcd_rst_pin.init(GPIOC, GPIO_Pin_5, true);
         lcd_rst_pin.on();
-        lcd_clk_pin.init(lcd_clk_pin.make_pin(GPIOB, GPIO_Pin_2));
-        lcd_dta_pin.init(lcd_dta_pin.make_pin(GPIOB, GPIO_Pin_14));
-        lcd_cmd_pin.init(lcd_cmd_pin.make_pin(GPIOB, GPIO_Pin_1));
-        lcd_enb_pin.init(lcd_enb_pin.make_pin(GPIOB, GPIO_Pin_13), true);
+        lcd_clk_pin.init(GPIOB, GPIO_Pin_2);
+        lcd_dta_pin.init(GPIOB, GPIO_Pin_14);
+        lcd_cmd_pin.init(GPIOB, GPIO_Pin_1);
+        lcd_enb_pin.init(GPIOB, GPIO_Pin_13, true);
         lcd_enb_pin.on();
-        lcd_bl_pin.init(lcd_bl_pin.make_pin(GPIOB, GPIO_Pin_0), true);        
+        lcd_bl_pin.init(GPIOB, GPIO_Pin_0, true);
         lcd_rst_pin.off();
         volatile uint8_t i = 0;
         while(--i);

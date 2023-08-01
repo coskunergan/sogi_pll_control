@@ -5,10 +5,9 @@
 
     Author: Coskun ERGAN
 */
-#if !defined(__INCLUDE_CONTROL_MC_CONFIG_H__)
-#define __INCLUDE_CONTROL_MC_CONFIG_H__
+#pragma once
 #include <float.h>
-namespace control
+namespace device_pll_control
 {
     using value_t = float;
 
@@ -36,4 +35,3 @@ namespace control
     };
 
 }
-#endif

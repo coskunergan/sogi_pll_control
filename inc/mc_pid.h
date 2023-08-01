@@ -6,10 +6,9 @@
     Author: Coskun ERGAN
 */
 
-#if !defined(__INCLUDE_CONTROL_MC_PID_H__)
-#define __INCLUDE_CONTROL_MC_PID_H__
+#pragma once
 #include "mc_config.h"
-namespace control
+namespace device_pll_control
 {
     class PID final
     {
@@ -58,4 +57,3 @@ namespace control
         value_t i_sum = 0;
     };
 }
-#endif

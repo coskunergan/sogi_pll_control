@@ -5,14 +5,13 @@
 
     Author: Coskun ERGAN
 */
-#if !defined(__INCLUDE_CONTROL_MC_SPLL_H__)
-#define __INCLUDE_CONTROL_MC_SPLL_H__
+#pragma once
 #include <tuple>
 #include "mc_pid.h"
 #include <stddef.h>
 #include <stdint.h>
 #include "mc_config.h"
-namespace control
+namespace device_pll_control
 {
     class SPLL final
     {
@@ -73,4 +72,3 @@ namespace control
         value_t auto_offset(value_t inp);
     };
 }
-#endif

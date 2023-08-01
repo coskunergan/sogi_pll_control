@@ -6,9 +6,7 @@
     Author: Coskun ERGAN
 */
 
-#if !defined(__INCLUDE_BUZZER_H__)
-#define __INCLUDE_BUZZER_H__
-
+#pragma once
 #include "RTE_Components.h"
 #include  CMSIS_device_header
 #include <chrono>
@@ -16,35 +14,40 @@
 #include "timer.h"
 #include "gpio_hal.h"
 
-using namespace gpio_hal;
-
-GpioOutput buzz_pin;
-
-class buzzer
+namespace device_buzzer
 {
-public:
-    void init()
+    using namespace gpio_hal;
+    class buzzer
     {
-        buzz_pin.init(buzz_pin.make_pin(GPIOA, GPIO_Pin_11), true);
-    }
+    public:
+        buzzer() = default;
+        ~buzzer() = default;
+        buzzer(buzzer &&) = delete;
+        buzzer &operator=(buzzer &&) = delete;
+        buzzer(const buzzer &) = delete;
+        buzzer &operator=(const buzzer &) = delete;
 
-    void beep(std::chrono::milliseconds(msec))
-    {
-        if(!m_tim_ptr || (!m_tim_ptr->running()))
+        void init()
         {
-            sys::timer buzz_timer(std::chrono::milliseconds(msec), [&]
-            {
-                buzz_pin.off();
-                return false;
-            });
-            m_tim_ptr = std::make_unique<sys::timer>(std::move(buzz_timer));
-            buzz_pin.on();
-            m_tim_ptr->start();
+            buzz_pin.init(GPIOA, GPIO_Pin_11, true);
         }
-    }
 
-private:
-    std::unique_ptr<sys::timer> m_tim_ptr;
-};
-
-#endif
+        void beep(std::chrono::milliseconds(msec))
+        {
+            if(!m_tim_ptr || (!m_tim_ptr->running()))
+            {
+                sys::timer buzz_timer(std::chrono::milliseconds(msec), [&]
+                {
+                    buzz_pin.off();
+                    return false;
+                });
+                m_tim_ptr = std::make_unique<sys::timer>(std::move(buzz_timer));
+                buzz_pin.on();
+                m_tim_ptr->start();
+            }
+        }
+    private:
+        GpioOutput buzz_pin;
+        std::unique_ptr<sys::timer> m_tim_ptr;
+    };
+}

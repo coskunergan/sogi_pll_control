@@ -12,7 +12,7 @@ extern "C" {
 #include "arm_math.h"
 }
 
-using namespace control;
+using namespace device_pll_control;
 
 SPLL::SPLL()
 {

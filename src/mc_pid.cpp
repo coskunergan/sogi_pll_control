@@ -7,7 +7,7 @@
 */
 #include "mc_pid.h"
 
-using namespace control;
+using namespace device_pll_control;
 
 void PID::reset() noexcept
 {
