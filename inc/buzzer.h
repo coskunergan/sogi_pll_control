@@ -10,7 +10,6 @@
 #include "RTE_Components.h"
 #include  CMSIS_device_header
 #include <chrono>
-#include "mutex.h"
 #include "timer.h"
 #include "gpio_hal.h"
 

@@ -10,7 +10,6 @@
 #include "RTE_Components.h"
 #include  CMSIS_device_header
 #include <chrono>
-#include "mutex.h"
 #include "timer.h"
 #include "threadflag.h"
 #include <functional>
@@ -23,10 +22,10 @@ namespace device_button
 {
     using namespace gpio_hal;
     class button
-    {        
+    {
     public:
         void check(size_t id, std::function<bool()> &&handler)
-        {            
+        {
             m_button_check_handler[id] = std::move(handler);
         }
 
@@ -132,7 +131,7 @@ namespace device_button
         void isr_handler(size_t id)
         {
             m_th_flag.set(*m_thread_ptr, (1 << id));
-        }        
+        }
     private:
         std::unique_ptr<sys::timer> m_tim_ptr;
         std::chrono::milliseconds m_long_press_msec[max_button_num];
@@ -142,7 +141,7 @@ namespace device_button
         std::chrono::system_clock::time_point m_long_press_tp[max_button_num];
         std::unique_ptr<sys::thread> m_thread_ptr;
         cmsis::thread_flags m_th_flag;
-        
+
 
     };
 }

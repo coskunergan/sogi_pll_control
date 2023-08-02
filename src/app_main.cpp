@@ -26,7 +26,10 @@ using namespace device_buzzer;
 using namespace device_button;
 using namespace gpio_hal;
 
-GpioInput test_button_pin;
+GpioInput button_pin;
+GpioInput encoder_pinA;
+GpioInput encoder_pinB;
+GpioOutput pulse_pin;
 SPLL  phase;
 button butt;
 buzzer buzz;
@@ -40,19 +43,6 @@ enum : size_t
     encoder_button_id = 1
 };
 
-const uint16_t EncoderA_Pin       = GPIO_Pin_2;
-GPIO_TypeDef *const EncoderA_Port = GPIOA;
-const uint32_t EncoderA_Clk       = RCC_AHBPeriph_GPIOA;
-const uint8_t EncoderA_Source     = GPIO_PinSource2;
-const uint8_t EncoderA_ExtiPin    = EXTI_PinSource2;
-const uint8_t EncoderA_ExtiPort   = EXTI_PortSourceGPIOA;
-const uint32_t EncoderA_ExtiLine  = EXTI_Line2;
-const IRQn_Type EncoderA_IRQn     = EXTI2_IRQn;
-
-const uint16_t EncoderB_Pin       = GPIO_Pin_4;
-GPIO_TypeDef *const EncoderB_Port = GPIOB;
-const uint32_t EncoderB_Clk       = RCC_AHBPeriph_GPIOB;
-
 /****************************************************************************/
 /****************************************************************************/
 /****************************************************************************/
@@ -63,25 +53,6 @@ extern "C" int _write(int fd, char *pbuffer, int size)
         my_printf.io_putchar(*pbuffer++);
     }
     return size;
-}
-/****************************************************************************/
-// extern "C" void EXTI0_IRQHandler(void)
-// {
-//     butt.isr_handler(button_id);
-//     EXTI_ClearITPendingBit(EXTI_Line0);
-// }
-
-extern "C" void EXTI0_IRQHandler(void)
-{
-    test_button_pin.gpio_isr_callback(GPIO_Pin_0);
-    //butt.isr_handler(button_id);
-    EXTI_ClearITPendingBit(EXTI_Line0);
-}
-/****************************************************************************/
-extern "C" void EXTI2_IRQHandler(void)
-{
-    butt.isr_handler(encoder_button_id);
-    EXTI_ClearITPendingBit(EXTI_Line2);
 }
 /****************************************************************************/
 const uint32_t DIFF_DEGREE = 10;
@@ -106,11 +77,11 @@ extern "C" void ADC1_IRQHandler(void) // ~155 uSn (3.2KHz)
         if((degree > enc_count && degree < (DIFF_DEGREE + enc_count)) ||
                 (degree > (enc_count + 180) && degree < (DIFF_DEGREE + enc_count + 180)))
         {
-            GPIO_SetBits(GPIOC, GPIO_Pin_7);
+            pulse_pin.on();
         }
         else
         {
-            GPIO_ResetBits(GPIOC, GPIO_Pin_7);
+            pulse_pin.off();
         }
     }
 }
@@ -150,57 +121,30 @@ void adc_init(void)
 void pre_init()
 {
     NVIC_PriorityGroupConfig(NVIC_PriorityGroup_4);
+    //------------------------------
     my_printf.init();
     //------------------------------
-    GPIO_InitTypeDef GPIO_InitStructure;
-    NVIC_InitTypeDef NVIC_InitStructure;
-    EXTI_InitTypeDef EXTI_InitStructure;
+    button_pin.init(GPIOA, GPIO_Pin_0, true);
+    button_pin.enablePullup();
+    button_pin.enableInterrupt(GpioInput::gpio_int_type_t::fall);
 
-    SYSCFG_EXTILineConfig(EncoderA_ExtiPort, EncoderA_ExtiPin);
+    encoder_pinA.init(GPIOA, GPIO_Pin_2, true);
+    encoder_pinA.enablePullup();
+    encoder_pinA.enableInterrupt(GpioInput::gpio_int_type_t::fall);
 
-    RCC_AHBPeriphClockCmd(EncoderA_Clk, ENABLE);
-    RCC_AHBPeriphClockCmd(EncoderB_Clk, ENABLE);
-    RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOC, ENABLE);
+    encoder_pinB.init(GPIOB, GPIO_Pin_4);
+    encoder_pinB.enablePullup();
 
-    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_7;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
-    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_40MHz;
-    GPIO_Init(GPIOC, &GPIO_InitStructure);
-
-    GPIO_InitStructure.GPIO_Pin = EncoderA_Pin;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN;
-    GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP;
-    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_40MHz;
-    GPIO_Init(EncoderA_Port, &GPIO_InitStructure);
-    GPIO_InitStructure.GPIO_Pin = EncoderB_Pin;
-    GPIO_Init(EncoderB_Port, &GPIO_InitStructure);
-
-    EXTI_InitStructure.EXTI_Line = EncoderA_ExtiLine;
-    EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Interrupt;
-    EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Falling;
-    EXTI_InitStructure.EXTI_LineCmd = ENABLE;
-    EXTI_Init(&EXTI_InitStructure);
-
-    NVIC_InitStructure.NVIC_IRQChannel = EncoderA_IRQn;
-    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 15;
-    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
-    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
-    NVIC_Init(&NVIC_InitStructure);
-
-    test_button_pin.init(GPIOA, GPIO_Pin_0, true);
-
-    test_button_pin.enablePullup();
-
-    test_button_pin.enableInterrupt(GpioInput::gpio_int_type_t::fall);
+    pulse_pin.init(GPIOC, GPIO_Pin_7);    
 
     butt.check(button_id, []
     {
-        return !GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_0);
+        return button_pin.read();
     });
 
     butt.check(encoder_button_id, []
     {
-        return !GPIO_ReadInputDataBit(EncoderA_Port, EncoderA_Pin);
+        return encoder_pinA.read();
     });
     //------------------------------
     adc_init();
@@ -211,27 +155,35 @@ void pre_init()
 /****************************************************************************/
 void app_main()
 {
+    cmsis::mutex printf_mutex;
+
     int ignore = 0;
+
+    buzz.beep(std::chrono::milliseconds(50));
 
     phase.reset();
 
-    test_button_pin.setEventHandler([]
+    button_pin.setISRHandler([]
     {
         butt.isr_handler(button_id);
     });
 
-    //test_button_pin.clearEventHandlers();
+    encoder_pinA.setISRHandler([]
+    {
+        butt.isr_handler(encoder_button_id);
+    });      
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-
+    printf_mutex.lock();
     printf("\rRestart..  ");
+    printf_mutex.unlock();
     my_printf.turn_off_bl_enable();
 
-    buzz.beep(std::chrono::milliseconds(50));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));    
 
     butt.press(button_id, [&]
     {
         my_printf.turn_off_bl_enable();
+        std::lock_guard<std::mutex> lg(printf_mutex);
         printf("\rButton Pressed..");
         buzz.beep(std::chrono::milliseconds(50));
         ignore = 10;
@@ -240,6 +192,7 @@ void app_main()
     butt.longpress(button_id, std::chrono::seconds(2), [&]
     {
         my_printf.turn_off_bl_enable();
+        std::lock_guard<std::mutex> lg(printf_mutex);
         printf("\rButton LongPressed..");
         buzz.beep(std::chrono::milliseconds(200));
         ignore = 10;
@@ -247,7 +200,7 @@ void app_main()
 
     butt.press(encoder_button_id, [&]
     {
-        if(GPIO_ReadInputDataBit(EncoderB_Port, EncoderB_Pin))
+        if(encoder_pinB.read())
         {
             if(enc_count > 100)
             {
@@ -286,6 +239,7 @@ void app_main()
             freq_sum += phase.freq() * phase.freq();
             freq = (freq == 0) ? 1 : freq;
             freq = (freq + ((freq_sum / 10) / freq)) / 2;
+            std::lock_guard<std::mutex> lg(printf_mutex);
             printf("\rF= %d Lock= %d       ", freq, (int)phase.is_lock());
             printf("\r\nPhase = %d         ", (int)((phase.phase() / 3.14159265358979323f) * 180.0f));
         }
