@@ -24,6 +24,13 @@ namespace device_button
     class button
     {
     public:
+        button() = default;
+        ~button() = default;
+        button(button &&) = delete;
+        button &operator=(button &&) = delete;
+        button(const button &) = delete;
+        button &operator=(const button &) = delete;
+
         void check(size_t id, std::function<bool()> &&handler)
         {
             m_button_check_handler[id] = std::move(handler);
@@ -77,7 +84,10 @@ namespace device_button
                                 if((m_mask & (1 << id)) == 0)// first press
                                 {
                                     m_long_press_tp[id] = std::chrono::milliseconds(m_long_press_msec[id]) + now;
-                                    m_button_press_handler[id]();
+                                    if(m_button_press_handler[id])
+                                    {
+                                        m_button_press_handler[id]();
+                                    }
                                 }
                                 id++;
                                 temp_mask >>= 1;
@@ -130,7 +140,10 @@ namespace device_button
 
         void isr_handler(size_t id)
         {
-            m_th_flag.set(*m_thread_ptr, (1 << id));
+            if(m_thread_ptr)
+            {
+                m_th_flag.set(*m_thread_ptr, (1 << id));
+            }
         }
     private:
         std::unique_ptr<sys::timer> m_tim_ptr;
@@ -141,7 +154,6 @@ namespace device_button
         std::chrono::system_clock::time_point m_long_press_tp[max_button_num];
         std::unique_ptr<sys::thread> m_thread_ptr;
         cmsis::thread_flags m_th_flag;
-
 
     };
 }

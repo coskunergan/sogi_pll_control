@@ -20,6 +20,7 @@
 #include "mc_spll.h"
 #include "gpio_hal.h"
 
+using namespace device_printf;
 using namespace cmsis;
 using namespace device_pll_control;
 using namespace device_buzzer;
@@ -32,9 +33,8 @@ GpioInput encoder_pinB;
 GpioOutput pulse_pin;
 SPLL  phase;
 button butt;
-buzzer buzz;
+buzzer buzz(GPIOA, GPIO_Pin_11, true);
 
-printf_io my_printf;
 uint8_t enc_count{175};
 
 enum : size_t
@@ -45,15 +45,6 @@ enum : size_t
 
 /****************************************************************************/
 /****************************************************************************/
-/****************************************************************************/
-extern "C" int _write(int fd, char *pbuffer, int size)
-{
-    for(int i = 0; i < size; i ++)
-    {
-        my_printf.io_putchar(*pbuffer++);
-    }
-    return size;
-}
 /****************************************************************************/
 const uint32_t DIFF_DEGREE = 10;
 const uint32_t OFFSET_PHASE = 90;
@@ -118,11 +109,9 @@ void adc_init(void)
     ADC_SoftwareStartConv(ADC1);
 }
 /****************************************************************************/
-void pre_init()
+void pre_init()// for access to NVIC 
 {
     NVIC_PriorityGroupConfig(NVIC_PriorityGroup_4);
-    //------------------------------
-    my_printf.init();
     //------------------------------
     button_pin.init(GPIOA, GPIO_Pin_0, true);
     button_pin.enablePullup();
@@ -135,7 +124,21 @@ void pre_init()
     encoder_pinB.init(GPIOB, GPIO_Pin_4);
     encoder_pinB.enablePullup();
 
-    pulse_pin.init(GPIOC, GPIO_Pin_7);    
+    pulse_pin.init(GPIOC, GPIO_Pin_7);
+    //------------------------------
+    adc_init();
+    //------------------------------
+}
+/****************************************************************************/
+void app_main()
+{
+    int ignore = 0;
+
+    printf("\rRestart..  ");
+
+    buzz.beep(std::chrono::milliseconds(50));
+
+    phase.reset();
 
     butt.check(button_id, []
     {
@@ -145,23 +148,7 @@ void pre_init()
     butt.check(encoder_button_id, []
     {
         return encoder_pinA.read();
-    });
-    //------------------------------
-    adc_init();
-    //------------------------------
-    buzz.init();
-    //------------------------------
-}
-/****************************************************************************/
-void app_main()
-{
-    cmsis::mutex printf_mutex;
-
-    int ignore = 0;
-
-    buzz.beep(std::chrono::milliseconds(50));
-
-    phase.reset();
+    });    
 
     button_pin.setISRHandler([]
     {
@@ -171,19 +158,15 @@ void app_main()
     encoder_pinA.setISRHandler([]
     {
         butt.isr_handler(encoder_button_id);
-    });      
+    });
 
-    printf_mutex.lock();
-    printf("\rRestart..  ");
-    printf_mutex.unlock();
-    my_printf.turn_off_bl_enable();
+    printf_io.turn_off_bl_enable();
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));    
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
     butt.press(button_id, [&]
     {
-        my_printf.turn_off_bl_enable();
-        std::lock_guard<std::mutex> lg(printf_mutex);
+        printf_io.turn_off_bl_enable();        
         printf("\rButton Pressed..");
         buzz.beep(std::chrono::milliseconds(50));
         ignore = 10;
@@ -191,8 +174,7 @@ void app_main()
 
     butt.longpress(button_id, std::chrono::seconds(2), [&]
     {
-        my_printf.turn_off_bl_enable();
-        std::lock_guard<std::mutex> lg(printf_mutex);
+        printf_io.turn_off_bl_enable();        
         printf("\rButton LongPressed..");
         buzz.beep(std::chrono::milliseconds(200));
         ignore = 10;
@@ -214,7 +196,7 @@ void app_main()
                 enc_count++;
             }
         }
-        my_printf.turn_off_bl_enable();
+        printf_io.turn_off_bl_enable();
         printf("\rEnc: %d    ", enc_count);
         buzz.beep(std::chrono::milliseconds(20));
         ignore = 10;
@@ -238,8 +220,7 @@ void app_main()
             freq_sum -= freq_sum / 10;
             freq_sum += phase.freq() * phase.freq();
             freq = (freq == 0) ? 1 : freq;
-            freq = (freq + ((freq_sum / 10) / freq)) / 2;
-            std::lock_guard<std::mutex> lg(printf_mutex);
+            freq = (freq + ((freq_sum / 10) / freq)) / 2;            
             printf("\rF= %d Lock= %d       ", freq, (int)phase.is_lock());
             printf("\r\nPhase = %d         ", (int)((phase.phase() / 3.14159265358979323f) * 180.0f));
         }
